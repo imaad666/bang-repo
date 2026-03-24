@@ -1,75 +1,4 @@
-const photos = [
-  {
-    id: "vidhana-view-1jun2020",
-    year: 2020,
-    src: "./pics/vidhana_view_1jun2020.jpg",
-    alt: "View toward central Bengaluru and Vidhana Soudha from a hill, 1 Jun 2020",
-    title: "City skyline",
-    location: "Vidhana Soudha view",
-    dateLabel: "1 Jun 2020",
-    note: "",
-  },
-  {
-    id: "koramangala-street-12july2020",
-    year: 2020,
-    src: "./pics/koramangala_street_12july2020.jpg",
-    alt: "Tree-lined street in Koramangala, 12 Jul 2020",
-    title: "Tree-lined street",
-    location: "Koramangala",
-    dateLabel: "12 Jul 2020",
-    note: "",
-  },
-  {
-    id: "vidhana-soudha-10jun2021",
-    year: 2021,
-    src: "./pics/vidhana_soudha_10jun2021.jpg",
-    alt: "Vidhana Soudha under blue sky, 10 Jun 2021",
-    title: "Vidhana Soudha",
-    location: "Ambedkar Veedhi",
-    dateLabel: "10 Jun 2021",
-    note: "",
-  },
-  {
-    id: "lalbagh-green-03january2021",
-    year: 2021,
-    src: "./pics/lalbagh_green_03jan2021.jpg",
-    alt: "Green canopy and gardens, Lalbagh area, 3 Jan 2021",
-    title: "Lalbagh",
-    location: "Botanical Garden",
-    dateLabel: "3 Jan 2021",
-    note: "",
-  },
-  {
-    id: "namma-metro-4nov2022",
-    year: 2022,
-    src: "./pics/namma_metro_4nov2022.jpg",
-    alt: "Namma Metro train on elevated track, 4 Nov 2022",
-    title: "Namma Metro",
-    location: "Elevated line",
-    dateLabel: "4 Nov 2022",
-    note: "",
-  },
-  {
-    id: "mg-road-street-01nov2022",
-    year: 2022,
-    src: "./pics/mg_road_street_01nov2022.jpg",
-    alt: "Pedestrians on a busy city street, 1 Nov 2022",
-    title: "Street scene",
-    location: "MG Road",
-    dateLabel: "1 Nov 2022",
-    note: "",
-  },
-  {
-    id: "cbd-night-5may2024",
-    year: 2024,
-    src: "./pics/cbd_night_5may2024.jpg",
-    alt: "Bengaluru city lights at night from above, 5 May 2024",
-    title: "Night skyline",
-    location: "CBD",
-    dateLabel: "5 May 2024",
-    note: "",
-  },
-];
+const photos = [];
 
 const archiveEl = document.getElementById("archive");
 const yearSelectEl = document.getElementById("yearSelect");
@@ -370,6 +299,14 @@ function createPhotoFigure(photo) {
 }
 
 function buildArchive() {
+  if (photos.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "archiveEmpty";
+    empty.textContent = "No photos yet.";
+    archiveEl.replaceChildren(empty);
+    return;
+  }
+
   const groups = groupByYear();
   const frag = document.createDocumentFragment();
 
