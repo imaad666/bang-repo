@@ -1,4 +1,15 @@
-const photos = [];
+const photos = [
+  {
+    id: "orchidpark-hoskote-10dec20201",
+    year: 2020,
+    src: "./pics/orchidpark_hoskote_10dec20201.jpeg",
+    alt: "Orchid Park, Hoskote, 10 Dec 2020",
+    title: "Orchid Park",
+    location: "Hoskote",
+    dateLabel: "10 Dec 2020",
+    note: "",
+  },
+];
 
 const archiveEl = document.getElementById("archive");
 const yearSelectEl = document.getElementById("yearSelect");
