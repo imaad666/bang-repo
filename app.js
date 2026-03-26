@@ -9,6 +9,16 @@ const photos = [
     dateLabel: "10 Dec 2020",
     note: "",
   },
+  {
+    id: "channsandra-whitefield-24dec2021",
+    year: 2021,
+    src: "./pics/Channsandra-Whitefield_24dec2021.jpeg",
+    alt: "Channsandra, Whitefield, 24 Dec 2021",
+    title: "Channsandra",
+    location: "Whitefield",
+    dateLabel: "24 Dec 2021",
+    note: "",
+  },
 ];
 
 const archiveEl = document.getElementById("archive");
