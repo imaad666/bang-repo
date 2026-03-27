@@ -19,6 +19,16 @@ const photos = [
     dateLabel: "24 Dec 2021",
     note: "",
   },
+  {
+    id: "sumadhuratower-hopefarm-26dec2021",
+    year: 2021,
+    src: "./pics/sumadhuratower-hopefarm_26dec2021.jpeg",
+    alt: "Sumadhura Tower, Hope Farm, 26 Dec 2021",
+    title: "Sumadhura Tower",
+    location: "Hope Farm",
+    dateLabel: "26 Dec 2021",
+    note: "",
+  },
 ];
 
 const archiveEl = document.getElementById("archive");
