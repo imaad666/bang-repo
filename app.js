@@ -20,6 +20,16 @@ const photos = [
     note: "",
   },
   {
+    id: "phoenix-marketcity-24dec2021",
+    year: 2021,
+    src: "./pics/phoenixmarketcity_24dec2021.jpeg",
+    alt: "Phoenix Marketcity, Whitefield, 24 Dec 2021",
+    title: "Phoenix Marketcity",
+    location: "Whitefield",
+    dateLabel: "24 Dec 2021",
+    note: "",
+  },
+  {
     id: "sumadhuratower-hopefarm-26dec2021",
     year: 2021,
     src: "./pics/sumadhuratower-hopefarm_26dec2021.jpeg",
