@@ -99,6 +99,16 @@ const photos = [
     dateLabel: "6 May 2023",
     note: "",
   },
+  {
+    id: "kadugodi-23may2023",
+    year: 2023,
+    src: "./pics/kadugodi_23may2023.jpeg",
+    alt: "Kadugodi, 23 May 2023",
+    title: "Kadugodi",
+    location: "Whitefield",
+    dateLabel: "23 May 2023",
+    note: "",
+  },
 ];
 
 const archiveEl = document.getElementById("archive");
