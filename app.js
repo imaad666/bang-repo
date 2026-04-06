@@ -1,12 +1,12 @@
 const photos = [
   {
-    id: "orchidpark-hoskote-10dec20201",
-    year: 2020,
+    id: "orchidpark-hoskote-10dec2021",
+    year: 2021,
     src: "./pics/orchidpark_hoskote_10dec20201.jpeg",
-    alt: "Orchid Park, Hoskote, 10 Dec 2020",
+    alt: "Orchid Park, Hoskote, 10 Dec 2021",
     title: "Orchid Park",
     location: "Hoskote",
-    dateLabel: "10 Dec 2020",
+    dateLabel: "10 Dec 2021",
     note: "",
   },
   {
