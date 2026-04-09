@@ -109,6 +109,16 @@ const photos = [
     dateLabel: "23 May 2023",
     note: "",
   },
+  {
+    id: "byoc-indiranagar-7dec2025",
+    year: 2025,
+    src: "./pics/BYOC_Indiranagar_7dec2025.jpeg",
+    alt: "BYOC, Indiranagar, 7 Dec 2025",
+    title: "BYOC",
+    location: "Indiranagar",
+    dateLabel: "7 Dec 2025",
+    note: "",
+  },
 ];
 
 const archiveEl = document.getElementById("archive");
