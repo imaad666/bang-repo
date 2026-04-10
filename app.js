@@ -110,6 +110,16 @@ const photos = [
     note: "",
   },
   {
+    id: "t2-kia-24sep2025",
+    year: 2025,
+    src: "./pics/T2-24sep2025.jpeg",
+    alt: "Terminal 2, Kempegowda International Airport, 24 Sep 2025",
+    title: "Terminal 2",
+    location: "KIA",
+    dateLabel: "24 Sep 2025",
+    note: "",
+  },
+  {
     id: "byoc-indiranagar-7dec2025",
     year: 2025,
     src: "./pics/BYOC_Indiranagar_7dec2025.jpeg",
