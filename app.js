@@ -120,6 +120,16 @@ const photos = [
     note: "",
   },
   {
+    id: "wilson-garden-11oct2025",
+    year: 2025,
+    src: "./pics/wilson-garden_11oct2025.jpeg",
+    alt: "Wilson Garden, 11 Oct 2025",
+    title: "Wilson Garden",
+    location: "Bangalore",
+    dateLabel: "11 Oct 2025",
+    note: "",
+  },
+  {
     id: "byoc-indiranagar-7dec2025",
     year: 2025,
     src: "./pics/BYOC_Indiranagar_7dec2025.jpeg",
