@@ -35,8 +35,11 @@ const adminFormMessage = document.getElementById("adminFormMessage");
 let openNoteFigure = null;
 let openModalPhotoId = null;
 let openSourceImg = null;
+let openSourceCaption = null;
 let lightboxAnimating = false;
+let flyBundleEl = null;
 let flyEl = null;
+let captionFlyEl = null;
 
 let modalEl = null;
 let modalImg = null;
@@ -96,8 +99,10 @@ function ensureModal() {
   modalEl.setAttribute("aria-modal", "true");
   modalEl.setAttribute("aria-label", "Photo");
 
+  // Tap anywhere in the focus view to dismiss (Close still works too).
   modalEl.addEventListener("click", (e) => {
-    if (e.target === modalEl) closeModal();
+    if (e.target.closest(".modalClose")) return;
+    closeModal();
   });
 
   const panel = document.createElement("div");
@@ -167,10 +172,54 @@ function prefersReducedMotion() {
 }
 
 function clearFly() {
-  if (flyEl) {
-    flyEl.remove();
-    flyEl = null;
+  if (flyBundleEl) {
+    flyBundleEl.querySelectorAll("*").forEach((el) => {
+      el.getAnimations().forEach((a) => a.cancel());
+    });
+    flyBundleEl.getAnimations().forEach((a) => a.cancel());
+    flyBundleEl.remove();
   }
+  flyBundleEl = null;
+  flyEl = null;
+  captionFlyEl = null;
+}
+
+function lockFlyerType(flyer, sampleRoot) {
+  if (!flyer || !sampleRoot) return;
+  const titleEl = flyer.querySelector(".lightboxCaptionFly-title");
+  const dateEl = flyer.querySelector(".lightboxCaptionFly-date");
+  const titleSample =
+    sampleRoot.querySelector(".titleButton, .modalTitle") || sampleRoot;
+  const dateSample = sampleRoot.querySelector(".captionDate");
+
+  if (titleEl && titleSample) {
+    const cs = getComputedStyle(titleSample);
+    Object.assign(titleEl.style, {
+      fontFamily: cs.fontFamily,
+      fontSize: cs.fontSize,
+      fontWeight: cs.fontWeight,
+      fontStyle: cs.fontStyle,
+      letterSpacing: cs.letterSpacing,
+      lineHeight: cs.lineHeight,
+    });
+  }
+  if (dateEl && dateSample) {
+    const cs = getComputedStyle(dateSample);
+    Object.assign(dateEl.style, {
+      fontFamily: cs.fontFamily,
+      fontSize: cs.fontSize,
+      fontWeight: cs.fontWeight,
+      fontStyle: cs.fontStyle,
+      letterSpacing: cs.letterSpacing,
+      lineHeight: cs.lineHeight,
+      marginTop: cs.marginTop,
+    });
+  }
+}
+
+function captionGap(imgRect, captionRect) {
+  if (!imgRect || !captionRect) return 12;
+  return Math.max(0, captionRect.top - (imgRect.top + imgRect.height));
 }
 
 function waitForImage(img) {
@@ -194,8 +243,29 @@ function nextFrame() {
   return new Promise((resolve) => requestAnimationFrame(() => resolve()));
 }
 
-function placeFly(rect, src, alt, { soft = true } = {}) {
+// Keep in step with --lightbox-duration / --lightbox-ease / --lightbox-chrome.
+const LIGHTBOX_MS = 460;
+const LIGHTBOX_EASE = "cubic-bezier(0.33, 0, 0.2, 1)";
+const LIGHTBOX_CHROME_MS = 280;
+
+function placeFlyBundle(
+  imgRect,
+  src,
+  alt,
+  {
+    soft = true,
+    title = "",
+    dateLabel = "",
+    light = false,
+    sampleRoot = null,
+    gap = 12,
+  } = {}
+) {
   clearFly();
+
+  flyBundleEl = document.createElement("div");
+  flyBundleEl.className = "lightboxFlyBundle";
+
   flyEl = document.createElement("div");
   flyEl.className = "lightboxFly";
   if (!soft) flyEl.classList.add("is-full");
@@ -217,85 +287,173 @@ function placeFly(rect, src, alt, { soft = true } = {}) {
 
   flyEl.appendChild(sharpImg);
   flyEl.appendChild(softImg);
+  flyEl.style.height = `${imgRect.height}px`;
 
-  Object.assign(flyEl.style, {
-    left: `${rect.left}px`,
-    top: `${rect.top}px`,
-    width: `${rect.width}px`,
-    height: `${rect.height}px`,
+  captionFlyEl = document.createElement("div");
+  captionFlyEl.className = "lightboxCaptionFly" + (light ? " is-light" : "");
+
+  const titleEl = document.createElement("div");
+  titleEl.className = "lightboxCaptionFly-title";
+  titleEl.textContent = title;
+
+  const dateEl = document.createElement("div");
+  dateEl.className = "lightboxCaptionFly-date";
+  dateEl.textContent = dateLabel;
+
+  captionFlyEl.appendChild(titleEl);
+  captionFlyEl.appendChild(dateEl);
+  captionFlyEl.style.marginTop = `${gap}px`;
+
+  flyBundleEl.appendChild(flyEl);
+  flyBundleEl.appendChild(captionFlyEl);
+
+  // Bundle is laid out in pixels — the photo box grows via width/height,
+  // while the caption sits under it with no transform, so type can't scale.
+  Object.assign(flyBundleEl.style, {
+    left: `${imgRect.left}px`,
+    top: `${imgRect.top}px`,
+    width: `${imgRect.width}px`,
   });
-  document.body.appendChild(flyEl);
-  return flyEl;
+
+  document.body.appendChild(flyBundleEl);
+  if (sampleRoot) lockFlyerType(captionFlyEl, sampleRoot);
+  return flyBundleEl;
 }
 
-function waitForSoftEdgeFade() {
-  return new Promise((resolve) => {
-    // Match CSS transition on .lightboxFly-soft / .lightboxFly-sharp
-    setTimeout(resolve, prefersReducedMotion() ? 0 : 360);
-  });
+function fadeFlyOut() {
+  if (!flyBundleEl || prefersReducedMotion()) return Promise.resolve();
+  const fade = flyBundleEl.animate(
+    [{ opacity: 1 }, { opacity: 0 }],
+    { duration: 120, easing: "ease-out", fill: "forwards" }
+  );
+  return fade.finished.catch(() => { });
 }
 
-async function morphFly(fromRect, toRect, { revealFull = false } = {}) {
-  if (!flyEl) return;
+async function morphFlyBundle(
+  fromRect,
+  toRect,
+  { revealFull = false, toLight = true, fromGap = 12, toGap = 14 } = {}
+) {
+  if (!flyBundleEl || !flyEl) return;
 
-  Object.assign(flyEl.style, {
+  Object.assign(flyBundleEl.style, {
     left: `${fromRect.left}px`,
     top: `${fromRect.top}px`,
     width: `${fromRect.width}px`,
-    height: `${fromRect.height}px`,
   });
+  flyEl.style.height = `${fromRect.height}px`;
+  if (captionFlyEl) {
+    captionFlyEl.style.marginTop = `${fromGap}px`;
+    captionFlyEl.classList.toggle("is-light", !toLight);
+  }
 
   if (prefersReducedMotion()) {
-    Object.assign(flyEl.style, {
+    Object.assign(flyBundleEl.style, {
       left: `${toRect.left}px`,
       top: `${toRect.top}px`,
       width: `${toRect.width}px`,
-      height: `${toRect.height}px`,
     });
+    flyEl.style.height = `${toRect.height}px`;
+    if (captionFlyEl) {
+      captionFlyEl.style.marginTop = `${toGap}px`;
+      captionFlyEl.classList.toggle("is-light", toLight);
+    }
     flyEl.classList.toggle("is-full", revealFull);
     return;
   }
 
   await nextFrame();
 
-  // Soft-edge fade runs in parallel with the size morph.
-  if (revealFull) {
-    flyEl.classList.add("is-full");
-  } else {
-    flyEl.classList.remove("is-full");
+  const opts = { duration: LIGHTBOX_MS, easing: LIGHTBOX_EASE, fill: "forwards" };
+  const soft = flyEl.querySelector(".lightboxFly-soft");
+  const sharp = flyEl.querySelector(".lightboxFly-sharp");
+
+  const anims = [
+    flyBundleEl.animate(
+      [
+        {
+          left: `${fromRect.left}px`,
+          top: `${fromRect.top}px`,
+          width: `${fromRect.width}px`,
+        },
+        {
+          left: `${toRect.left}px`,
+          top: `${toRect.top}px`,
+          width: `${toRect.width}px`,
+        },
+      ],
+      opts
+    ),
+    flyEl.animate(
+      [{ height: `${fromRect.height}px` }, { height: `${toRect.height}px` }],
+      opts
+    ),
+  ];
+
+  if (captionFlyEl) {
+    anims.push(
+      captionFlyEl.animate(
+        [{ marginTop: `${fromGap}px` }, { marginTop: `${toGap}px` }],
+        opts
+      )
+    );
+
+    const titleEl = captionFlyEl.querySelector(".lightboxCaptionFly-title");
+    const dateEl = captionFlyEl.querySelector(".lightboxCaptionFly-date");
+    const darkTitle = "rgb(17, 17, 17)";
+    const lightTitle = "rgba(255, 255, 255, 0.92)";
+    const darkDate = "rgb(136, 136, 136)";
+    const lightDate = "rgba(255, 255, 255, 0.5)";
+    if (titleEl) {
+      anims.push(
+        titleEl.animate(
+          [
+            { color: toLight ? darkTitle : lightTitle },
+            { color: toLight ? lightTitle : darkTitle },
+          ],
+          opts
+        )
+      );
+    }
+    if (dateEl) {
+      anims.push(
+        dateEl.animate(
+          [
+            { color: toLight ? darkDate : lightDate },
+            { color: toLight ? lightDate : darkDate },
+          ],
+          opts
+        )
+      );
+    }
   }
 
-  const anim = flyEl.animate(
-    [
-      {
-        left: `${fromRect.left}px`,
-        top: `${fromRect.top}px`,
-        width: `${fromRect.width}px`,
-        height: `${fromRect.height}px`,
-      },
-      {
-        left: `${toRect.left}px`,
-        top: `${toRect.top}px`,
-        width: `${toRect.width}px`,
-        height: `${toRect.height}px`,
-      },
-    ],
-    {
-      duration: 480,
-      easing: "cubic-bezier(0.32, 0.72, 0, 1)",
-      fill: "forwards",
-    }
-  );
+  if (soft && sharp) {
+    anims.push(
+      soft.animate(
+        [{ opacity: revealFull ? 1 : 0 }, { opacity: revealFull ? 0 : 1 }],
+        opts
+      ),
+      sharp.animate(
+        [{ opacity: revealFull ? 0 : 1 }, { opacity: revealFull ? 1 : 0 }],
+        opts
+      )
+    );
+  }
 
-  await Promise.all([anim.finished.catch(() => { }), waitForSoftEdgeFade()]);
+  await Promise.all(anims.map((a) => a.finished.catch(() => { })));
 
-  Object.assign(flyEl.style, {
+  Object.assign(flyBundleEl.style, {
     left: `${toRect.left}px`,
     top: `${toRect.top}px`,
     width: `${toRect.width}px`,
-    height: `${toRect.height}px`,
   });
-  anim.cancel();
+  flyEl.style.height = `${toRect.height}px`;
+  if (captionFlyEl) {
+    captionFlyEl.style.marginTop = `${toGap}px`;
+    captionFlyEl.classList.toggle("is-light", toLight);
+  }
+  anims.forEach((a) => a.cancel());
 }
 
 async function openModalForPhoto(photo, sourceImg) {
@@ -305,6 +463,8 @@ async function openModalForPhoto(photo, sourceImg) {
   lightboxAnimating = true;
   openModalPhotoId = photo.id;
   openSourceImg = sourceImg || null;
+  openSourceCaption =
+    openSourceImg?.closest("figure")?.querySelector(".caption") || null;
 
   const src = photo.src;
   const thumbSrc = openSourceImg?.currentSrc || openSourceImg?.src || src;
@@ -323,16 +483,30 @@ async function openModalForPhoto(photo, sourceImg) {
   if (modalErrorEl) modalErrorEl.classList.add("hidden");
 
   const fromRect = openSourceImg ? copyRect(openSourceImg.getBoundingClientRect()) : null;
+  const fromCaptionRect = openSourceCaption
+    ? copyRect(openSourceCaption.getBoundingClientRect())
+    : null;
+
+  const fromGap = captionGap(fromRect, fromCaptionRect);
 
   if (fromRect && openSourceImg) {
-    // Soft flyer covers the soft thumbnail; original hides underneath.
     openSourceImg.classList.add("is-lightboxSource");
-    placeFly(fromRect, thumbSrc, photo.alt, { soft: true });
+    if (openSourceCaption) openSourceCaption.classList.add("is-lightboxSource");
+    placeFlyBundle(fromRect, thumbSrc, photo.alt, {
+      soft: true,
+      title: photo.title,
+      dateLabel: photo.dateLabel,
+      light: false,
+      sampleRoot: openSourceCaption,
+      gap: fromGap,
+    });
   }
 
   modalEl.classList.remove("hidden", "is-closing");
-  modalEl.classList.add("is-expanding");
+  modalEl.classList.add("is-expanding", "is-chrome-hidden");
+  const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
   document.body.style.overflow = "hidden";
+  document.body.style.paddingRight = scrollbarWidth ? `${scrollbarWidth}px` : "";
 
   await nextFrame();
   modalEl.classList.add("is-dimmed");
@@ -347,24 +521,47 @@ async function openModalForPhoto(photo, sourceImg) {
     await nextFrame();
 
     const toRect = copyRect(modalImg.getBoundingClientRect());
+    const captionEl = modalEl.querySelector(".modalCaption");
+    const toCaptionRect = captionEl
+      ? copyRect(captionEl.getBoundingClientRect())
+      : null;
+    const toGap = captionGap(toRect, toCaptionRect);
 
-    if (!fromRect || !flyEl || prefersReducedMotion() || toRect.width < 2) {
-      modalEl.classList.remove("is-expanding");
+    if (!fromRect || !flyBundleEl || prefersReducedMotion() || toRect.width < 2) {
+      modalEl.classList.remove("is-expanding", "is-chrome-hidden");
       clearFly();
       lightboxAnimating = false;
       return;
     }
 
-    await morphFly(fromRect, toRect, { revealFull: true });
+    // Close fades in late; title/date ride under the photo in the bundle.
+    const chromeTimer = window.setTimeout(() => {
+      modalEl.classList.remove("is-chrome-hidden");
+      if (captionEl) captionEl.style.opacity = "0";
+      if (modalNoteEl) modalNoteEl.style.opacity = "0";
+    }, Math.max(0, LIGHTBOX_MS - LIGHTBOX_CHROME_MS));
 
-    // Handoff: reveal real image under the flyer, then drop the flyer.
-    modalEl.classList.remove("is-expanding");
+    try {
+      await morphFlyBundle(fromRect, toRect, {
+        revealFull: true,
+        toLight: true,
+        fromGap,
+        toGap,
+      });
+    } finally {
+      window.clearTimeout(chromeTimer);
+    }
+
+    if (captionEl) captionEl.style.opacity = "";
+    if (modalNoteEl) modalNoteEl.style.opacity = "";
+    modalEl.classList.remove("is-expanding", "is-chrome-hidden");
     await nextFrame();
+    await fadeFlyOut();
     clearFly();
   } catch (e) {
     console.error(e);
     modalEl.classList.add("is-open");
-    modalEl.classList.remove("is-expanding");
+    modalEl.classList.remove("is-expanding", "is-chrome-hidden");
     clearFly();
   }
 
@@ -375,22 +572,30 @@ async function closeModal() {
   if (!modalEl || modalEl.classList.contains("hidden") || lightboxAnimating) return;
 
   const sourceImg = openSourceImg;
+  const sourceCaption = openSourceCaption;
   openModalPhotoId = null;
   lightboxAnimating = true;
 
   const finish = () => {
     modalEl.classList.add("hidden");
-    modalEl.classList.remove("is-open", "is-expanding", "is-dimmed", "is-closing");
+    modalEl.classList.remove("is-open", "is-expanding", "is-dimmed", "is-closing", "is-chrome-hidden");
     modalImg.style.width = "";
     modalImg.style.height = "";
     modalImg.style.maxWidth = "";
     modalImg.style.maxHeight = "";
+    if (modalEl.querySelector(".modalCaption")) {
+      modalEl.querySelector(".modalCaption").style.opacity = "";
+    }
+    if (modalNoteEl) modalNoteEl.style.opacity = "";
     document.body.style.overflow = "";
+    document.body.style.paddingRight = "";
     if (sourceImg) sourceImg.classList.remove("is-lightboxSource");
+    if (sourceCaption) sourceCaption.classList.remove("is-lightboxSource");
     // Drop focus so the browser doesn't draw a selection ring on the thumbnail.
     const focusEl = sourceImg?.closest("button") || document.activeElement;
     if (focusEl && typeof focusEl.blur === "function") focusEl.blur();
     openSourceImg = null;
+    openSourceCaption = null;
     clearFly();
     lightboxAnimating = false;
   };
@@ -403,17 +608,44 @@ async function closeModal() {
 
   const fromRect = copyRect(modalImg.getBoundingClientRect());
   const toRect = copyRect(sourceImg.getBoundingClientRect());
+  const captionEl = modalEl.querySelector(".modalCaption");
+  const fromCaptionRect = captionEl
+    ? copyRect(captionEl.getBoundingClientRect())
+    : null;
+  const toCaptionRect = sourceCaption
+    ? copyRect(sourceCaption.getBoundingClientRect())
+    : null;
   const src = modalImg.currentSrc || modalImg.src;
+  const title = modalTopTitleEl?.textContent || "";
+  const dateLabel = modalTopMetaEl?.textContent || "";
 
-  placeFly(fromRect, src, modalImg.alt, { soft: false });
+  const fromGap = captionGap(fromRect, fromCaptionRect);
+  const toGap = captionGap(toRect, toCaptionRect);
 
-  // Hide lightbox chrome immediately; dim fades out while photo returns.
-  modalEl.classList.add("is-expanding", "is-closing");
+  if (sourceCaption) sourceCaption.classList.add("is-lightboxSource");
+  placeFlyBundle(fromRect, src, modalImg.alt, {
+    soft: false,
+    title,
+    dateLabel,
+    light: true,
+    sampleRoot: captionEl,
+    gap: fromGap,
+  });
+
+  // Dim and chrome ease out with the flight; photo/caption are covered by the bundle.
+  modalEl.classList.add("is-expanding", "is-closing", "is-chrome-hidden");
   modalEl.classList.remove("is-open", "is-dimmed");
 
   try {
-    // Shrink back + soft edges fade back in together.
-    await morphFly(fromRect, toRect, { revealFull: false });
+    await morphFlyBundle(fromRect, toRect, {
+      revealFull: false,
+      toLight: false,
+      fromGap,
+      toGap,
+    });
+    sourceImg.classList.remove("is-lightboxSource");
+    if (sourceCaption) sourceCaption.classList.remove("is-lightboxSource");
+    await fadeFlyOut();
   } catch (e) {
     // ignore
   }
