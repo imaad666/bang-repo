@@ -38,6 +38,11 @@
       rgba(0, 0, 0, 0.55) 82%,
       rgba(0, 0, 0, 0.18) 92%,
       transparent 100%);
+  /* Shared by the lightbox flight and the dim/chrome that ride with it.
+     Keep LIGHTBOX_MS / LIGHTBOX_EASE in app.js in step with these. */
+  --lightbox-duration: 460ms;
+  --lightbox-ease: cubic-bezier(0.33, 0, 0.2, 1);
+  --lightbox-chrome: 280ms;
 }
 
 * {
@@ -297,7 +302,14 @@ body {
 
   .modalOverlay,
   .modalPanel,
-  .lightboxFly {
+  .modalClose,
+  .modalCaption,
+  .modalNote,
+  .lightboxFlyBundle,
+  .lightboxFly,
+  .lightboxFly-soft,
+  .lightboxFly-sharp,
+  .lightboxCaptionFly {
     transition: none !important;
   }
 }
@@ -314,7 +326,7 @@ body {
   padding: 24px 16px 32px;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 360ms cubic-bezier(0.32, 0.72, 0, 1);
+  transition: opacity var(--lightbox-duration) var(--lightbox-ease);
 }
 
 .modalOverlay.is-dimmed,
@@ -325,7 +337,7 @@ body {
 
 .modalOverlay.is-closing {
   opacity: 0;
-  transition: opacity 380ms cubic-bezier(0.32, 0.72, 0, 1);
+  transition: opacity var(--lightbox-duration) var(--lightbox-ease);
   pointer-events: auto;
 }
 
@@ -344,11 +356,15 @@ body {
   gap: 14px;
 }
 
-.modalOverlay.is-expanding .modalClose,
-.modalOverlay.is-expanding .modalCaption,
-.modalOverlay.is-expanding .modalNote,
 .modalOverlay.is-expanding .modalImageWrap img {
   opacity: 0 !important;
+  pointer-events: none;
+}
+
+.modalOverlay.is-chrome-hidden .modalClose,
+.modalOverlay.is-chrome-hidden .modalCaption,
+.modalOverlay.is-chrome-hidden .modalNote {
+  opacity: 0;
   pointer-events: none;
 }
 
@@ -367,7 +383,7 @@ body {
   font-size: 0.85rem;
   font-weight: 300;
   letter-spacing: 0.04em;
-  transition: color 150ms ease, opacity 220ms ease;
+  transition: color 150ms ease, opacity var(--lightbox-chrome) var(--lightbox-ease);
   opacity: 1;
 }
 
@@ -398,7 +414,7 @@ body {
   text-align: center;
   color: rgba(255, 255, 255, 0.88);
   max-width: 90%;
-  transition: opacity 220ms ease;
+  transition: opacity var(--lightbox-chrome) var(--lightbox-ease);
 }
 
 .modalTitle {
@@ -425,20 +441,35 @@ body {
   line-height: 1.45;
   color: rgba(255, 255, 255, 0.72);
   white-space: pre-wrap;
-  transition: opacity 220ms ease;
+  transition: opacity var(--lightbox-chrome) var(--lightbox-ease);
 }
 
-/* The actual photo that grows out of the thumbnail (iOS-style). */
-.lightboxFly {
+/* Photo + caption travel together. The photo box grows via width/height;
+   the caption is a sibling under it with no transform, so type can't scale. */
+.lightboxFlyBundle {
   position: fixed;
   z-index: 70;
   margin: 0;
   padding: 0;
   border: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   pointer-events: none;
+  will-change: left, top, width;
+}
+
+.lightboxFly {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
   overflow: hidden;
   background: transparent;
   box-shadow: none;
+  flex: 0 0 auto;
 }
 
 .lightboxFly-img {
@@ -454,11 +485,12 @@ body {
   border: 0;
 }
 
-/* Soft-edge copy (matches home thumbnails). */
+/* Soft-edge copy (matches home thumbnails).
+   Opacity is driven by the Web Animations flight so it stays locked
+   to the move; these values are only the resting state. */
 .lightboxFly-soft {
   z-index: 2;
   opacity: 1;
-  transition: opacity 340ms cubic-bezier(0.32, 0.72, 0, 1);
   -webkit-mask-image: var(--photo-fade-y), var(--photo-fade-x), var(--photo-fade-radial);
   -webkit-mask-composite: source-in, source-in;
   mask-image: var(--photo-fade-y), var(--photo-fade-x), var(--photo-fade-radial);
@@ -469,14 +501,9 @@ body {
 .lightboxFly-sharp {
   z-index: 1;
   opacity: 0;
-  transition: opacity 340ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 
-/* While expanding: soft edges fade out, sharp photo fades in. */
-.lightboxFly.is-full {
-  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.35);
-}
-
+/* Resting sharp state (close starts here; reduced-motion jumps here). */
 .lightboxFly.is-full .lightboxFly-soft {
   opacity: 0;
 }
@@ -487,6 +514,54 @@ body {
 
 .imageWrap img.is-lightboxSource {
   opacity: 0 !important;
+}
+
+.caption.is-lightboxSource {
+  opacity: 0 !important;
+}
+
+/* Title/date sit under the photo in the fly bundle — never transformed. */
+.lightboxCaptionFly {
+  position: relative;
+  z-index: 2;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  pointer-events: none;
+  text-align: center;
+  white-space: nowrap;
+  width: max-content;
+  max-width: 100%;
+  flex: 0 0 auto;
+  color: var(--text);
+}
+
+.lightboxCaptionFly-title {
+  font-family: var(--font-title);
+  font-weight: 500;
+  font-size: 1.05rem;
+  letter-spacing: 0.01em;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+.lightboxCaptionFly-date {
+  margin-top: 4px;
+  font-family: 'Merriweather', Georgia, serif;
+  font-size: 0.8rem;
+  font-weight: 300;
+  font-style: italic;
+  color: var(--muted);
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.lightboxCaptionFly.is-light {
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.lightboxCaptionFly.is-light .lightboxCaptionFly-date {
+  color: rgba(255, 255, 255, 0.5);
 }
 
 .archiveStatus {
