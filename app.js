@@ -13,8 +13,14 @@ let editingPhotoId = null;
 let extractedGps = null;
 
 const archiveEl = document.getElementById("archive");
-const yearSelectEl = document.getElementById("yearSelect");
+const yearSwitcherEl = document.getElementById("yearSwitcher");
+const yearSwitcherTriggerEl = document.getElementById("yearSwitcherTrigger");
+const yearSwitcherValueEl = document.getElementById("yearSwitcherValue");
+const yearSwitcherMenuEl = document.getElementById("yearSwitcherMenu");
 const adminDock = document.getElementById("adminDock");
+
+let selectedYear = "all";
+let yearSwitcherOpen = false;
 const adminAddBtn = document.getElementById("adminAddBtn");
 const adminLogoutBtn = document.getElementById("adminLogoutBtn");
 const adminSheet = document.getElementById("adminSheet");
@@ -64,24 +70,96 @@ function groupByYear() {
   return Array.from(map.entries()).sort((a, b) => a[0] - b[0]);
 }
 
+function yearOptionValues() {
+  return ["all", ...uniqueYears().map((y) => String(y))];
+}
+
+function setYearSwitcherLabel(year) {
+  if (yearSwitcherValueEl) yearSwitcherValueEl.textContent = year;
+}
+
+function syncYearSwitcherActive() {
+  if (!yearSwitcherMenuEl) return;
+  for (const btn of yearSwitcherMenuEl.querySelectorAll(".yearSwitcherOption")) {
+    const active = btn.dataset.value === selectedYear;
+    btn.classList.toggle("is-active", active);
+    btn.setAttribute("aria-selected", active ? "true" : "false");
+  }
+}
+
+function closeYearSwitcher({ restoreFocus = false } = {}) {
+  if (!yearSwitcherOpen) return;
+  yearSwitcherOpen = false;
+  yearSwitcherTriggerEl?.setAttribute("aria-expanded", "false");
+  yearSwitcherMenuEl?.classList.add("hidden");
+  if (restoreFocus) yearSwitcherTriggerEl?.focus();
+}
+
+function openYearSwitcher() {
+  if (!yearSwitcherMenuEl || !yearSwitcherTriggerEl) return;
+  if (!yearSwitcherMenuEl.children.length) return;
+  yearSwitcherOpen = true;
+  yearSwitcherTriggerEl.setAttribute("aria-expanded", "true");
+  yearSwitcherMenuEl.classList.remove("hidden");
+  const active =
+    yearSwitcherMenuEl.querySelector(".yearSwitcherOption.is-active") ||
+    yearSwitcherMenuEl.querySelector(".yearSwitcherOption");
+  active?.focus();
+}
+
+function toggleYearSwitcher() {
+  if (yearSwitcherOpen) closeYearSwitcher();
+  else openYearSwitcher();
+}
+
+function selectYear(year, { closeUI = true } = {}) {
+  selectedYear = year || "all";
+  setYearSwitcherLabel(selectedYear);
+  syncYearSwitcherActive();
+  if (closeUI) closeUIForFilterChange();
+  applyYearFilter(selectedYear);
+  closeYearSwitcher();
+}
+
 function buildYearOptions() {
-  const years = uniqueYears();
+  if (!yearSwitcherMenuEl) return;
   const frag = document.createDocumentFragment();
 
-  const allOpt = document.createElement("option");
-  allOpt.value = "all";
-  allOpt.textContent = "all";
-  frag.appendChild(allOpt);
+  for (const value of yearOptionValues()) {
+    const li = document.createElement("li");
+    li.setAttribute("role", "presentation");
 
-  for (const y of years) {
-    const opt = document.createElement("option");
-    opt.value = String(y);
-    opt.textContent = String(y);
-    frag.appendChild(opt);
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "yearSwitcherOption";
+    btn.dataset.value = value;
+    btn.textContent = value;
+    btn.setAttribute("role", "option");
+    btn.setAttribute("aria-selected", value === selectedYear ? "true" : "false");
+    if (value === selectedYear) btn.classList.add("is-active");
+
+    btn.addEventListener("click", () => {
+      selectYear(value);
+    });
+
+    li.appendChild(btn);
+    frag.appendChild(li);
   }
 
-  yearSelectEl.replaceChildren(frag);
-  yearSelectEl.value = "all";
+  yearSwitcherMenuEl.replaceChildren(frag);
+  setYearSwitcherLabel(selectedYear);
+  syncYearSwitcherActive();
+}
+
+function focusYearOptionByOffset(offset) {
+  const options = [...(yearSwitcherMenuEl?.querySelectorAll(".yearSwitcherOption") || [])];
+  if (!options.length) return;
+  const current = document.activeElement;
+  let index = options.indexOf(current);
+  if (index < 0) index = options.findIndex((o) => o.dataset.value === selectedYear);
+  if (index < 0) index = 0;
+  const next = options[(index + offset + options.length) % options.length];
+  next?.focus();
 }
 
 function closeAllNotes() {
@@ -504,9 +582,15 @@ async function openModalForPhoto(photo, sourceImg) {
 
   modalEl.classList.remove("hidden", "is-closing");
   modalEl.classList.add("is-expanding", "is-chrome-hidden");
-  const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+  const scrollbarWidth = archiveEl
+    ? archiveEl.offsetWidth - archiveEl.clientWidth
+    : window.innerWidth - document.documentElement.clientWidth;
   document.body.style.overflow = "hidden";
   document.body.style.paddingRight = scrollbarWidth ? `${scrollbarWidth}px` : "";
+  if (archiveEl) {
+    archiveEl.style.overflow = "hidden";
+    archiveEl.style.paddingRight = scrollbarWidth ? `${scrollbarWidth}px` : "";
+  }
 
   await nextFrame();
   modalEl.classList.add("is-dimmed");
@@ -589,6 +673,10 @@ async function closeModal() {
     if (modalNoteEl) modalNoteEl.style.opacity = "";
     document.body.style.overflow = "";
     document.body.style.paddingRight = "";
+    if (archiveEl) {
+      archiveEl.style.overflow = "";
+      archiveEl.style.paddingRight = "";
+    }
     if (sourceImg) sourceImg.classList.remove("is-lightboxSource");
     if (sourceCaption) sourceCaption.classList.remove("is-lightboxSource");
     // Drop focus so the browser doesn't draw a selection ring on the thumbnail.
@@ -823,13 +911,53 @@ function closeUIForFilterChange() {
   closeModal();
 }
 
-yearSelectEl.addEventListener("change", () => {
-  closeUIForFilterChange();
-  applyYearFilter(yearSelectEl.value);
+yearSwitcherTriggerEl?.addEventListener("click", (e) => {
+  e.stopPropagation();
+  toggleYearSwitcher();
+});
+
+yearSwitcherTriggerEl?.addEventListener("keydown", (e) => {
+  if (e.key === "ArrowDown" || e.key === "Enter" || e.key === " ") {
+    e.preventDefault();
+    if (!yearSwitcherOpen) openYearSwitcher();
+    else if (e.key === "ArrowDown") focusYearOptionByOffset(1);
+  }
+});
+
+yearSwitcherMenuEl?.addEventListener("keydown", (e) => {
+  if (e.key === "ArrowDown") {
+    e.preventDefault();
+    focusYearOptionByOffset(1);
+  } else if (e.key === "ArrowUp") {
+    e.preventDefault();
+    focusYearOptionByOffset(-1);
+  } else if (e.key === "Home") {
+    e.preventDefault();
+    yearSwitcherMenuEl.querySelector(".yearSwitcherOption")?.focus();
+  } else if (e.key === "End") {
+    e.preventDefault();
+    const options = yearSwitcherMenuEl.querySelectorAll(".yearSwitcherOption");
+    options[options.length - 1]?.focus();
+  } else if (e.key === "Escape") {
+    e.preventDefault();
+    closeYearSwitcher({ restoreFocus: true });
+  } else if (e.key === "Tab") {
+    closeYearSwitcher();
+  }
+});
+
+document.addEventListener("click", (e) => {
+  if (!yearSwitcherOpen) return;
+  if (yearSwitcherEl?.contains(e.target)) return;
+  closeYearSwitcher();
 });
 
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") {
+    if (yearSwitcherOpen) {
+      closeYearSwitcher({ restoreFocus: true });
+      return;
+    }
     if (!adminSheet.classList.contains("hidden")) {
       closeAdminSheet();
       return;
@@ -934,19 +1062,24 @@ function closeAdminSheet() {
 }
 
 async function refreshArchive() {
-  const previousYear = yearSelectEl.value || "all";
+  const previousYear = selectedYear || "all";
   photos = await loadPhotos();
   if (!photos.length) {
     showArchiveStatus("No photos yet.");
-    yearSelectEl.replaceChildren();
+    yearSwitcherMenuEl?.replaceChildren();
+    selectedYear = "all";
+    setYearSwitcherLabel("all");
+    closeYearSwitcher();
     return;
+  }
+  if (yearOptionValues().includes(previousYear)) {
+    selectedYear = previousYear;
+  } else {
+    selectedYear = "all";
   }
   buildYearOptions();
   buildArchive();
-  if ([...yearSelectEl.options].some((o) => o.value === previousYear)) {
-    yearSelectEl.value = previousYear;
-  }
-  applyYearFilter(yearSelectEl.value);
+  applyYearFilter(selectedYear);
 }
 
 async function deletePhotoFromArchive(photo) {
@@ -1127,13 +1260,16 @@ async function init() {
 
   if (!photos.length) {
     showArchiveStatus(isAdmin ? "No photos yet. Tap Add to upload one." : "No photos yet.");
-    yearSelectEl.replaceChildren();
+    yearSwitcherMenuEl?.replaceChildren();
+    selectedYear = "all";
+    setYearSwitcherLabel("all");
     return;
   }
 
+  selectedYear = "all";
   buildYearOptions();
   buildArchive();
-  applyYearFilter("all");
+  applyYearFilter(selectedYear);
 }
 
 init();
